@@ -20,7 +20,8 @@ This is a customizable and persistent chatbot built with the [Groq API](https://
    ```bash
    git clone https://github.com/yourusername/groq-chatbot.git
    cd groq-chatbot
-pip install -r requirements.txt
+   pip install -r requirements.txt
+   python chatbot.py
 
 
 # update your env file
