@@ -25,8 +25,8 @@ This is a customizable and persistent chatbot built with the [Groq API](https://
 
 
 # update your env file
-GROQ_API_KEY=your_groq_api_key
-USERNAME=YourName
-ASSISTANT_NAME=YourBot
+-GROQ_API_KEY=your_groq_api_key
+-USERNAME=YourName
+-ASSISTANT_NAME=YourBot
 
 
