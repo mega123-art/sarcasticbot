@@ -1,105 +1,74 @@
-import cohere#ai services
-from rich import print#colorful terminal outputs
-from dotenv import dotenv_values#load environment variables from the .env file
-env_vars = dotenv_values(".env")#load environment variables from the .env file
-cohereapikey = env_vars.get("COHERE_API_KEY")#retreive the cohere api key from the .env file
-cohereclient = cohere.Client(cohereapikey)#initialize the cohere client with the api key
+import cohere
+from rich import print
+from dotenv import dotenv_values
 
-#defining functions for the decision model(keywords)
+# Load environment variables
+env_vars = dotenv_values(".env")
+cohereapikey = env_vars.get("COHERE_API_KEY")
+cohereclient = cohere.Client(cohereapikey)
 
-funcs =[
-"exit", "general", "realtime", "open", "close", "play",
-"generate image", "system", "content", "google search",
-"youtube search", "reminder"]
-#empty list to store the user msgs
-usermsgs = []
+# Only allow general and realtime responses
+valid_types = ["general", "realtime"]
 
-#define the character of the aimodel how to categorize queries
-#it is a prompt for the model to understand how to categorize queries
-
+# Instruction for categorizing queries
 preamble = """
 You are a very accurate Decision-Making Model, which decides what kind of a query is given to you.
-You will decide whether a query is a 'general' query, a 'realtime' query, or is asking to perform any task or automation like 'open facebook, instagram', 'can you write a application and open it in notepad'
+You will decide whether a query is a 'general' query or a 'realtime' query.
 *** Do not answer any query, just decide what kind of query is given to you. ***
--> Respond with 'general ( query )' if a query can be answered by a llm model (conversational ai chatbot) and doesn't require any up to date information like if the query is 'who was akbar?' respond with 'general who was akbar?', if the query is 'how can i study more effectively?' respond with 'general how can i study more effectively?', if the query is 'can you help me with this math problem?' respond with 'general can you help me with this math problem?', if the query is 'Thanks, i really liked it.' respond with 'general thanks, i really liked it.' , if the query is 'what is python programming language?' respond with 'general what is python programming language?', etc. Respond with 'general (query)' if a query doesn't have a proper noun or is incomplete like if the query is 'who is he?' respond with 'general who is he?', if the query is 'what's his networth?' respond with 'general what's his networth?', if the query is 'tell me more about him.' respond with 'general tell me more about him.', and so on even if it require up-to-date information to answer. Respond with 'general (query)' if the query is asking about time, day, date, month, year, etc like if the query is 'what's the time?' respond with 'general what's the time?'.
--> Respond with 'realtime ( query )' if a query can not be answered by a llm model (because they don't have realtime data) and requires up to date information like if the query is 'who is indian prime minister' respond with 'realtime who is indian prime minister', if the query is 'tell me about facebook's recent update.' respond with 'realtime tell me about facebook's recent update.', if the query is 'tell me news about coronavirus.' respond with 'realtime tell me news about coronavirus.', etc and if the query is asking about any individual or thing like if the query is 'who is akshay kumar' respond with 'realtime who is akshay kumar', if the query is 'what is today's news?' respond with 'realtime what is today's news?', if the query is 'what is today's headline?' respond with 'realtime what is today's headline?', etc.
--> Respond with 'open (application name or website name)' if a query is asking to open any application like 'open facebook', 'open telegram', etc. but if the query is asking to open multiple applications, respond with 'open 1st application name, open 2nd application name' and so on.
--> Respond with 'close (application name)' if a query is asking to close any application like 'close notepad', 'close facebook', etc. but if the query is asking to close multiple applications or websites, respond with 'close 1st application name, close 2nd application name' and so on.
--> Respond with 'play (song name)' if a query is asking to play any song like 'play afsanay by ys', 'play let her go', etc. but if the query is asking to play multiple songs, respond with 'play 1st song name, play 2nd song name' and so on.
--> Respond with 'generate image (image prompt)' if a query is requesting to generate a image with given prompt like 'generate image of a lion', 'generate image of a cat', etc. but if the query is asking to generate multiple images, respond with 'generate image 1st image prompt, generate image 2nd image prompt' and so on.
--> Respond with 'reminder (datetime with message)' if a query is requesting to set a reminder like 'set a reminder at 9:00pm on 25th june for my business meeting.' respond with 'reminder 9:00pm 25th june business meeting'.
--> Respond with 'system (task name)' if a query is asking to mute, unmute, volume up, volume down , etc. but if the query is asking to do multiple tasks, respond with 'system 1st task, system 2nd task', etc.
--> Respond with 'content (topic)' if a query is asking to write any type of content like application, codes, emails or anything else about a specific topic but if the query is asking to write multiple types of content, respond with 'content 1st topic, content 2nd topic' and so on.
--> Respond with 'google search (topic)' if a query is asking to search a specific topic on google but if the query is asking to search multiple topics on google, respond with 'google search 1st topic, google search 2nd topic' and so on.
--> Respond with 'youtube search (topic)' if a query is asking to search a specific topic on youtube but if the query is asking to search multiple topics on youtube, respond with 'youtube search 1st topic, youtube search 2nd topic' and so on.
-*** If the query is asking to perform multiple tasks like 'open facebook, telegram and close whatsapp' respond with 'open facebook, open telegram, close whatsapp' ***
-*** If the user is saying goodbye or wants to end the conversation like 'bye jarvis.' respond with 'exit'.***
-*** Respond with 'general (query)' if you can't decide the kind of query or if a query is asking to perform a task which is not mentioned above. ***
+
+-> Respond with 'general (query)' if the query can be answered by a conversational LLM and doesn't require real-time updates. For example:
+    - 'who was akbar?' → 'general who was akbar?'
+    - 'how to write a good resume?' → 'general how to write a good resume?'
+    - 'what is the capital of India?' → 'general what is the capital of India?'
+
+-> Respond with 'realtime (query)' if the query requires real-time data or current events. For example:
+    - 'who is the current prime minister of India?' → 'realtime who is the current prime minister of India?'
+    - 'what's the weather like in Delhi now?' → 'realtime what's the weather like in Delhi now?'
+
+*** Respond with 'general (query)' if you're unsure or the type is ambiguous. ***
 """
 
-#defining chat history for context so the model gets trained
+# Chat history examples
 ChatHistory = [
-{"role": "User", "message": "how are you?"},
-{"role": "Chatbot", "message": "general how are you?"},
-{"role": "User", "message": "do you like pizza?"},
-{"role": "Chatbot", "message": "general do you like pizza?"},
-{"role": "User", "message": "open chrome and tell me about mahatma gandhi."},
-{"role": "Chatbot", "message": "open chrome, general tell me about mahatma gandhi. "},
-{"role": "User", "message": "open chrome and firefox"},
-{"role": "Chatbot", "message": "open chrome, open firefox"},
-{"role": "User", "message": "what is today's date and by the way remind me that i have a dancing performance on"},
-{"role": "Chatbot", "message": "general what is today's date, reminder 11:00pm 5th aug dancing performance"},
-{"role": "User", "message": "chat with me."},
-{"role": "Chatbot", "message": "general chat with me."}]
+    {"role": "User", "message": "how are you?"},
+    {"role": "Chatbot", "message": "general how are you?"},
+    {"role": "User", "message": "what is the time in new york?"},
+    {"role": "Chatbot", "message": "general what is the time in new york?"},
+    {"role": "User", "message": "who is the current CEO of Google?"},
+    {"role": "Chatbot", "message": "realtime who is the current CEO of Google?"},
+]
 
-#defining the function to get the decision from the model
-def getdecision(prompt:str="test"):
-    #append the user msgs to the list
-    usermsgs.append({"role": "User", "message": f"{prompt}"})
+usermsgs = []
 
-    #create a streaming chat session with the cohere model
-    stream=cohereclient.chat_stream(
-        model='command-r-plus',#specify the cohere model to use
-        message=prompt, #pass the user's query
-        temperature=0.7, # set the creativity level of model
-        chat_history=ChatHistory, #provide the predefined chat history for context
-        prompt_truncation='OFF', #ensure the prompt is not trunctated
-        connectors=[], #no additional connectors are used
-        preamble=preamble #pass the detailed instructions to model
+def getdecision(prompt: str = "test"):
+    usermsgs.append({"role": "User", "message": prompt})
+
+    stream = cohereclient.chat_stream(
+        model='command-r-plus',
+        message=prompt,
+        temperature=0.3,
+        chat_history=ChatHistory,
+        prompt_truncation='OFF',
+        connectors=[],
+        preamble=preamble
     )
 
-    response="" #create a empty string to store the response
-    #iterate over events in the stream ans capture text generation events
+    response = ""
     for event in stream:
         if event.event_type == "text-generation":
-            response += event.text #append the generated text in response
+            response += event.text
 
-    #remove newline characters and split responses into individual tasks
-    response = response.replace("\n", "")
-    response = response.split(", ")
+    response = response.replace("\n", "").strip()
 
-    #strip leading and trailing spaces from each task
-    response = [i.strip() for i in response]
+    # Only allow "general ..." or "realtime ..." responses
+    for key in valid_types:
+        if response.lower().startswith(key):
+            return response
 
-    temp=[] #initialize a empty list to filter valid tasks
+    # Default to general if nothing matches
+    return f"general {prompt}"
 
-    #filter the tasks based on recognised function keywords.
-
-    for task in response:
-        for func in funcs:
-            if task.startswith(func):
-                temp.append(task)
-
-    response=temp #update the response with the filtered tasks
-
-# If '(query)' is in the response, recursively call the function for further clarification.
-    if "(query)" in response:
-        newresponse = getdecision(prompt=prompt)
-        return newresponse
-    else:
-        return response
-    
 if __name__ == "__main__":
     while True:
-        print(getdecision(prompt=input("Enter your query: ")))
-
+        query = input("Enter your query: ")
+        print(getdecision(prompt=query))
